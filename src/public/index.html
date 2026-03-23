@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>URL Shortener</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f4f8; min-height: 100vh; padding: 40px 16px; color: #1a1a1a; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { color: #666; margin-bottom: 32px; font-size: 15px; }
+
+    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #e0e0e0; }
+
+    .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .input-row input { flex: 1; min-width: 200px; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    .btn { padding: 10px 20px; background: #1e3a5f; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+    .btn:hover { background: #2a4f82; }
+    .btn-red { background: #dc2626; }
+    .btn-red:hover { background: #b91c1c; }
+
+    .result { margin-top: 16px; padding: 14px; background: #e8f0fe; border-radius: 8px; display: none; }
+    .result a { color: #1e3a5f; font-weight: 600; font-size: 16px; }
+    .result .copy-btn { margin-left: 10px; padding: 4px 12px; background: #1e3a5f; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .error { margin-top: 12px; color: #dc2626; font-size: 14px; display: none; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 10px 12px; background: #f8f9fa; font-weight: 600; color: #555; }
+    td { padding: 10px 12px; border-top: 1px solid #f0f0f0; }
+    td a { color: #1e3a5f; text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; background: #dbeafe; color: #1e40af; font-weight: 500; }
+    .empty { text-align: center; color: #aaa; padding: 32px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat { text-align: center; padding: 16px; background: #f8f9fa; border-radius: 8px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #1e3a5f; }
+    .stat-label { font-size: 13px; color: #888; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚡ URL Shortener</h1>
+    <p class="subtitle">Built with TypeScript + Express. Paste a URL, get a short link instantly.</p>
+
+    <!-- Shorten Form -->
+    <div class="card">
+      <div class="input-row">
+        <input id="urlInput" type="url" placeholder="https://your-long-url.com/..." />
+        <input id="customCode" type="text" placeholder="custom-code (optional)" style="max-width:200px;" />
+        <button class="btn" onclick="shortenUrl()">Shorten →</button>
+      </div>
+      <div class="result" id="result">
+        Short URL: <a id="shortLink" href="#" target="_blank"></a>
+        <button class="copy-btn" onclick="copyLink()">Copy</button>
+      </div>
+      <div class="error" id="error"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat"><div class="stat-value" id="totalUrls">0</div><div class="stat-label">Total URLs</div></div>
+        <div class="stat"><div class="stat-value" id="totalClicks">0</div><div class="stat-label">Total Clicks</div></div>
+        <div class="stat"><div class="stat-value" id="uptime">0s</div><div class="stat-label">Uptime</div></div>
+      </div>
+    </div>
+
+    <!-- URL List -->
+    <div class="card">
+      <table id="urlTable">
+        <thead>
+          <tr><th>Short URL</th><th>Original URL</th><th>Clicks</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody id="urlBody">
+          <tr><td colspan="5" class="empty">No URLs yet. Shorten one above!</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function shortenUrl() {
+      const url = document.getElementById('urlInput').value.trim();
+      const customCode = document.getElementById('customCode').value.trim();
+      const resultDiv = document.getElementById('result');
+      const errorDiv = document.getElementById('error');
+      resultDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      if (!url) { showError('Please enter a URL'); return; }
+
+      try {
+        const res = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, customCode: customCode || undefined })
+        });
+        const data = await res.json();
+        if (!data.success) { showError(data.error); return; }
+
+        document.getElementById('shortLink').href = data.data.shortUrl;
+        document.getElementById('shortLink').textContent = data.data.shortUrl;
+        resultDiv.style.display = 'block';
+        document.getElementById('urlInput').value = '';
+        document.getElementById('customCode').value = '';
+        loadUrls();
+        loadStats();
+      } catch (e) { showError('Something went wrong'); }
+    }
+
+    async function loadUrls() {
+      const res = await fetch('/api/urls');
+      const data = await res.json();
+      const tbody = document.getElementById('urlBody');
+      if (!data.data.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">No URLs yet. Shorten one above!</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.data.map(u => `
+        <tr>
+          <td><a href="${u.shortUrl}" target="_blank">${u.shortCode}</a></td>
+          <td><a href="${u.originalUrl}" target="_blank" title="${u.originalUrl}">${u.originalUrl.slice(0, 45)}${u.originalUrl.length > 45 ? '...' : ''}</a></td>
+          <td><span class="badge">${u.clicks} clicks</span></td>
+          <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+          <td><button class="btn btn-red" onclick="deleteUrl('${u.shortCode}')" style="padding:4px 10px;font-size:12px;">Delete</button></td>
+        </tr>`).join('');
+    }
+
+    async function loadStats() {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      document.getElementById('totalUrls').textContent = data.totalUrls;
+      document.getElementById('totalClicks').textContent = data.totalClicks;
+      document.getElementById('uptime').textContent = data.uptime;
+    }
+
+    async function deleteUrl(code) {
+      await fetch(`/api/urls/${code}`, { method: 'DELETE' });
+      loadUrls(); loadStats();
+    }
+
+    function copyLink() {
+      navigator.clipboard.writeText(document.getElementById('shortLink').href);
+      alert('Copied!');
+    }
+
+    function showError(msg) {
+      const e = document.getElementById('error');
+      e.textContent = msg;
+      e.style.display = 'block';
+    }
+
+    document.getElementById('urlInput').addEventListener('keyup', e => {
+      if (e.key === 'Enter') shortenUrl();
+    });
+
+    loadUrls(); loadStats();
+    setInterval(loadStats, 10000);
+  </script>
+</body>
+</html>
