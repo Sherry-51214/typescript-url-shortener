@@ -2,13 +2,13 @@
 ## Screenshots
 
 ### Dashboard
-![Dashboard](screenshot1.png)
+![Dashboard](screenshot1.png.JPG)
 
 ### URL Shortened
-![URL Shortened](screenshot2.png)
+![URL Shortened](screenshot2.png.JPG)
 
 ### Multiple URLs with Click Tracking
-![Click Tracking](screenshot3.png)
+![Click Tracking](screenshot3.png.JPG)
 A fully working URL shortener built with TypeScript and Express. Features a live web dashboard, click tracking, custom short codes, and a REST API — all running locally in under 30 seconds.
 
 ## Live Demo Features
